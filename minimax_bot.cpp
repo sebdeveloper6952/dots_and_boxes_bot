@@ -4,15 +4,20 @@
 #include <mutex>
 #include <condition_variable>
 #include <string>
+#include <chrono>
 #include "./socket.io-client-cpp/build/include/sio_client.h"
 
 using namespace sio;
 using namespace std;
 
 #define INF 99999999
-#define TOURNAMENT_ID 12
+#define TOURNAMENT_ID 1
 #define FULL 0
 #define EMPTY 99
+#define URL "http://localhost:4000"
+#define NGROK "http://876e10de0c24.ngrok.io/"
+#define HALF_A_SEC 500000
+#define O_DEPTH 4
 
 std::mutex _lock;
 std::condition_variable_any _cond;
@@ -20,6 +25,7 @@ bool connect_finish = false;
 struct minimax_result {int score; int i; int j;};
 socket::ptr _socket;
 long curr_game_id = 0;
+int depth = O_DEPTH;
 
 void print_board(int board[][30])
 {
@@ -108,6 +114,17 @@ void calculate_scores(int board[][30], int *p1, int *p2)
             else if (v < 0) *p2 += v;
         }
     }
+}
+
+int moves_remaining(int board[][30])
+{
+    int r = 0;
+    for (int i = 0; i < 30; i++)
+    {
+        if (board[0][i] == EMPTY) r++;
+        if (board[1][i] == EMPTY) r++;
+    }
+    return r;
 }
 
 struct minimax_result static_evaluation(int board[][30])
@@ -224,14 +241,28 @@ void on_ready(sio::event &ev)
     parse_board(board, board_a);
 
     // minimax with board
+    std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
     struct minimax_result res;
-    res = minimax(board_a, 5, true, -INF, INF);
-
+    res = minimax(board_a, depth, true, -INF, INF);
+    // timing and lookahead increase
+    std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+    long diff = std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count();
+    
+    // debug data
     std::cout << "**********************************************" << std::endl;
     std::cout << "score: " << res.score << std::endl;
     std::cout << "playin move: " << res.i << "," << res.j << std::endl;
+    std::cout << "depth: " << depth << std::endl;
+    std::cout << "time diff: " << diff << "[µs]" << std::endl;
     std::cout << "**********************************************" << std::endl;
     std::cout << std::endl;
+    
+
+    if (moves_remaining(board_a) < 50 && diff < 250000)
+    {
+        depth++;
+        std::cout << "Depth increased to: " << depth << std::endl;
+    }
 
     // emit play
     message::ptr emit_data = object_message::create();
@@ -248,6 +279,10 @@ void on_ready(sio::event &ev)
 
 void on_finish(sio::event &ev)
 {
+    // reset depth
+    depth = O_DEPTH;
+
+    // get data
     std::map<std::string, message::ptr> data = ev.get_message()->get_map();
     std::vector<message::ptr> board = data["board"]->get_vector();
     int player_turn_id = data["player_turn_id"]->get_int();
@@ -260,6 +295,10 @@ void on_finish(sio::event &ev)
     std::cout << "* Did i win? " << (player_turn_id == winner_turn_id ? "YES!":"NO :(") << std::endl;
     std::cout << "* Player 1: " << p1 << std::endl;
     std::cout << "* Player 2: " << (-p2) << std::endl;
+
+    std::cout << "press to get ready..." << std::endl;
+    string n;
+    getline(cin, n);
     
     // emit player_ready
     message::ptr emit_data = object_message::create();
@@ -275,8 +314,7 @@ int main(int argc, const char *args[])
     sio::client h;
     
     h.set_open_listener(&on_connect);
-    // h.connect("http://127.0.0.1:4000");
-    h.connect("http://876e10de0c24.ngrok.io/");
+    h.connect(URL);
     
     _lock.lock();
     if(!connect_finish)
