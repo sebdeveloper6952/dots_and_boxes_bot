@@ -11,11 +11,13 @@ using namespace sio;
 using namespace std;
 
 #define INF 99999999
-#define TOURNAMENT_ID 1
+#define USERNAME "SebasArriola"
+#define TOURNAMENT_ID 999999
 #define FULL 0
 #define EMPTY 99
-#define URL "http://localhost:4000"
-#define NGROK "http://876e10de0c24.ngrok.io/"
+// #define URL "http://localhost:4000"
+#define URL "http://3.12.129.126:4000"
+// #define NGROK "http://876e10de0c24.ngrok.io/"
 #define HALF_A_SEC 500000
 #define O_DEPTH 4
 
@@ -295,10 +297,6 @@ void on_finish(sio::event &ev)
     std::cout << "* Did i win? " << (player_turn_id == winner_turn_id ? "YES!":"NO :(") << std::endl;
     std::cout << "* Player 1: " << p1 << std::endl;
     std::cout << "* Player 2: " << (-p2) << std::endl;
-
-    std::cout << "press to get ready..." << std::endl;
-    string n;
-    getline(cin, n);
     
     // emit player_ready
     message::ptr emit_data = object_message::create();
@@ -333,7 +331,7 @@ int main(int argc, const char *args[])
 
     // sign in
     message::ptr data = object_message::create();
-    data->get_map()["user_name"] = string_message::create("Sebas2");
+    data->get_map()["user_name"] = string_message::create(USERNAME);
     data->get_map()["tournament_id"] = int_message::create(TOURNAMENT_ID);
     data->get_map()["user_role"] = string_message::create("player");
     _socket->emit("signin", data);
